@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Calculadora Arbitragem Cashback - Stakes Editáveis</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/style_dinamico.css" rel="stylesheet">
+    <style>
+        .stake-editavel {
+            background-color: #f8f9fa;
+            border-left: 3px solid #28a745;
+        }
+        .stake-editavel:focus {
+            background-color: #fff;
+            border-left: 3px solid #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        .stake-editavel:disabled {
+            background-color: #e9ecef;
+            border-left: 3px solid #6c757d;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="container">
+        <div class="logo">SEMPREGREEN</div>
+        <div class="subtitle">Calculadora Arbitragem</div>
+    </div>
+</div>
+<div class="container">
+    <h2 class="mb-4">🧮 Calculadora de Arbitragem com Cashback (2 a 5 Vias) - Stakes Editáveis</h2>
+    
+    <!-- Controles para adicionar/remover vias -->
+    <div class="text-center mb-4">
+        <button type="button" class="btn btn-success me-2" id="btn-adicionar" onclick="adicionarVia()">
+            ➕ Adicionar Via
+        </button>
+        <button type="button" class="btn btn-danger me-2" id="btn-remover" onclick="removerVia()">
+            ➖ Remover Via
+        </button>
+        <span class="badge bg-info ms-2" id="contador-vias">2 vias ativas</span>
+        <br>
+        <small class="text-muted mt-2 d-block">Mínimo: 2 vias | Máximo: 5 vias</small>
+        <small class="text-info mt-1 d-block">💡 Dica: Edite os stakes nos resultados para ajustar valores manualmente</small>
+    </div>
+
+    <!-- Container para campos dinâmicos -->
+    <div id="campos-container" class="row g-3 mb-4">
+        <!-- Os campos serão gerados dinamicamente aqui -->
+    </div>
+
+    <!-- Campo Stake A separado -->
+    <div class="row mb-4">
+        <div class="col-md-4 mx-auto">
+            <div class="input-group">
+                <span class="input-group-text">💰 Stake A (R$)</span>
+                <input type="number" class="form-control" id="stakeA" step="0.01" oninput="calcular()" placeholder="Ex: 1000">
+            </div>
+        </div>
+    </div>
+
+    <hr class="my-4">
+    <div id="resultado" class="bg-white p-4 rounded shadow-sm">
+        <p class="text-muted text-center">Preencha os campos para calcular a arbitragem.</p>
+        <!-- Stakes editáveis serão exibidos aqui dinamicamente -->
+    </div>
+</div>
+
+<script src="/static/script_dinamico.js"></script>
+</body>
+</html>

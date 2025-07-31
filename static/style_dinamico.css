@@ -1,0 +1,263 @@
+/* Cores baseadas na imagem fornecida */
+:root {
+    --bg-dark: #2c2c2c;
+    --bg-darker: #1a1a1a;
+    --green-primary: #28a745;
+    --green-secondary: #20c997;
+    --text-light: #ffffff;
+    --text-muted: #cccccc;
+    --border-color: #444444;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 20px 0;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 1200px;
+}
+
+/* Header com logo */
+.header {
+    background-color: var(--bg-darker);
+    padding: 20px 0;
+    margin-bottom: 30px;
+    border-bottom: 3px solid var(--green-primary);
+}
+
+.logo {
+    text-align: center;
+    color: var(--text-light);
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    text-align: center;
+    background-color: var(--green-primary);
+    color: var(--text-light);
+    padding: 10px;
+    margin: 0 -15px;
+    font-size: 1.2rem;
+}
+
+/* Botões de controle */
+.btn-success {
+    background-color: var(--green-primary);
+    border-color: var(--green-primary);
+    transition: all 0.3s ease;
+}
+
+.btn-success:hover:not(.disabled) {
+    background-color: var(--green-secondary);
+    border-color: var(--green-secondary);
+    transform: translateY(-1px);
+}
+
+.btn-danger {
+    transition: all 0.3s ease;
+}
+
+.btn-danger:hover:not(.disabled) {
+    transform: translateY(-1px);
+}
+
+.badge {
+    font-size: 0.9rem;
+}
+
+/* Cards das vias */
+.card {
+    background-color: var(--bg-darker);
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.card-header {
+    background-color: var(--green-primary) !important;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.card-body {
+    background-color: var(--bg-darker);
+}
+
+/* Formulário */
+.input-group-text {
+    background-color: var(--bg-darker);
+    color: var(--text-light);
+    border: 1px solid var(--border-color);
+    font-weight: 500;
+    min-width: 140px;
+}
+
+.form-control {
+    background-color: var(--text-light);
+    color: var(--bg-darker);
+    border: 1px solid var(--border-color);
+    text-align: center;
+    font-weight: bold;
+}
+
+.form-control:focus {
+    background-color: var(--text-light);
+    color: var(--bg-darker);
+    border-color: var(--green-primary);
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+.form-control::placeholder {
+    color: #999;
+    font-weight: normal;
+}
+
+/* Resultados */
+#resultado {
+    background-color: var(--bg-darker);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    color: var(--text-light);
+}
+
+.highlight {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    margin: 5px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 300px;
+}
+
+.highlight h5 {
+    color: var(--green-secondary);
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+/* Força os quadros a ficarem lado a lado */
+.row.text-center {
+    display: flex !important;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
+
+/* Lucro e ROI */
+.profit {
+    color: var(--green-primary);
+    font-weight: bold;
+}
+
+.loss {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+/* Cor específica para os labels de resultado */
+.label-resultado {
+    color: var(--bg-darker);
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 15px;
+    }
+    
+    .input-group-text {
+        min-width: 120px;
+        font-size: 0.9rem;
+    }
+    
+    .logo {
+        font-size: 1.5rem;
+    }
+    
+    .subtitle {
+        font-size: 1rem;
+    }
+    
+    .highlight {
+        min-width: 250px;
+        margin: 5px auto;
+    }
+    
+    .btn {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+}
+
+@media (max-width: 576px) {
+    .col-md-4 {
+        margin-bottom: 15px;
+    }
+    
+    .highlight {
+        min-width: 100%;
+    }
+    
+    .btn {
+        display: block;
+        width: 100%;
+        margin: 5px 0;
+    }
+    
+    .badge {
+        display: block;
+        margin-top: 10px;
+    }
+}
+
+/* Animações */
+.highlight {
+    transition: all 0.3s ease;
+}
+
+.highlight:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Separador */
+hr {
+    border-color: var(--border-color);
+    margin: 30px 0;
+}
+
+/* Texto de aviso */
+.text-danger {
+    color: #dc3545 !important;
+}
+
+.text-success {
+    color: var(--green-primary) !important;
+}
+
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Estados dos botões */
+.btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Contador de vias */
+#contador-vias {
+    font-weight: bold;
+    padding: 8px 12px;
+}
