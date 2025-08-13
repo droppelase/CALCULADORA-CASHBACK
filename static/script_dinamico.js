@@ -2,7 +2,8 @@
 let numeroVias = 2;
 const letras = ['A', 'B', 'C', 'D', 'E'];
 let stakesEditaveis = {};
-let modoEdicao = false;
+let stakeFixoEditado = null; // Qual stake foi editada pelo usuário
+let ultimosValoresStakes = {}; // Para detectar mudanças
 
 // Inicializar a página
 document.addEventListener('DOMContentLoaded', function() {
@@ -15,31 +16,57 @@ function gerarCampos() {
     const container = document.getElementById('campos-container');
     container.innerHTML = '';
     
+    // Criar uma única linha para todas as vias
+    const row = document.createElement('div');
+    row.className = 'row g-2'; // Reduzir gap entre colunas
+    
     for (let i = 0; i < numeroVias; i++) {
         const letra = letras[i];
         const col = document.createElement('div');
-        col.className = 'col-md-6 mb-3';
+        
+        // Layout responsivo melhorado para 5 vias
+        if (numeroVias === 5) {
+            // Para 5 vias: usar largura fixa com cálculo preciso
+            col.className = 'col mb-3';
+            col.style.flex = '0 0 19.2%'; // 19.2% x 5 = 96% (deixa 4% para gaps)
+            col.style.maxWidth = '19.2%';
+        } else if (numeroVias === 4) {
+            col.className = 'col-lg-3 col-md-6 col-sm-6 mb-3';
+        } else if (numeroVias === 3) {
+            col.className = 'col-lg-4 col-md-4 col-sm-6 mb-3';
+        } else {
+            col.className = 'col-lg-6 col-md-6 col-sm-6 mb-3';
+        }
         
         col.innerHTML = `
-            <div class="card bg-dark text-white">
+            <div class="card bg-dark text-white h-100">
                 <div class="card-header bg-success text-center">
                     <h6 class="mb-0">📊 Via ${letra}</h6>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-2">
                     <div class="input-group mb-2">
-                        <span class="input-group-text">Odd ${letra}</span>
-                        <input type="number" class="form-control" id="odd${letra}" step="0.01" oninput="calcular()" placeholder="Ex: 2.50">
+                        <span class="input-group-text">Odd</span>
+                        <input type="number" class="form-control" id="odd${letra}" step="0.01" oninput="calcular()" placeholder="2.50">
                     </div>
-                    <div class="input-group">
-                        <span class="input-group-text">Cashback ${letra} (%)</span>
-                        <input type="number" class="form-control" id="cb${letra}" step="0.01" oninput="calcular()" placeholder="Ex: 10">
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">Cashback (%)</span>
+                        <input type="number" class="form-control" id="cb${letra}" step="0.01" oninput="calcular()" placeholder="10">
+                    </div>
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">Stake (R$)</span>
+                        <input type="number" class="form-control stake-input" id="stake${letra}" step="0.01" oninput="editarStake('${letra}', this.value)" placeholder="1000">
+                    </div>
+                    <div class="cashback-display">
+                        <small class="text-muted">Cashback (R$): <span id="cbValue${letra}">0.00</span></small>
                     </div>
                 </div>
             </div>
         `;
         
-        container.appendChild(col);
+        row.appendChild(col);
     }
+    
+    container.appendChild(row);
 }
 
 function adicionarVia() {
@@ -95,8 +122,8 @@ function calcular() {
     // Coletar dados dos campos
     const data = {
         numeroVias: numeroVias,
-        modoEdicao: modoEdicao,
-        stakesEditaveis: stakesEditaveis
+        stakesEditaveis: stakesEditaveis,
+        stakeFixoEditado: stakeFixoEditado
     };
     
     // Coletar odds e cashbacks
@@ -111,24 +138,39 @@ function calcular() {
         }
     }
     
-    // Stake A
+    // Stake A (apenas se não estiver em modo dinâmico)
     const stakeAElement = document.getElementById('stakeA');
-    if (stakeAElement) {
+    if (stakeAElement && !stakeFixoEditado) {
         data.stakeA = parseFloat(stakeAElement.value) || 0;
     }
     
     // Verificar se temos dados suficientes
-    let temDadosSuficientes = data.stakeA > 0;
-    for (let i = 0; i < numeroVias; i++) {
-        const letra = letras[i];
-        if (data[`odd${letra}`] <= 0) {
-            temDadosSuficientes = false;
-            break;
+    let temDadosSuficientes = false;
+    
+    if (stakeFixoEditado && stakesEditaveis[stakeFixoEditado]) {
+        // Modo dinâmico: verificar se temos a stake editada e odds
+        temDadosSuficientes = stakesEditaveis[stakeFixoEditado] > 0;
+        for (let i = 0; i < numeroVias; i++) {
+            const letra = letras[i];
+            if (data[`odd${letra}`] <= 0) {
+                temDadosSuficientes = false;
+                break;
+            }
+        }
+    } else {
+        // Modo tradicional: verificar stake A e odds
+        temDadosSuficientes = data.stakeA > 0;
+        for (let i = 0; i < numeroVias; i++) {
+            const letra = letras[i];
+            if (data[`odd${letra}`] <= 0) {
+                temDadosSuficientes = false;
+                break;
+            }
         }
     }
     
     if (!temDadosSuficientes) {
-        document.getElementById('resultado').innerHTML = '<p class="text-muted text-center">Preencha ao menos Odd A, Odd B e Stake A para calcular.</p>';
+        document.getElementById('resultado').innerHTML = '<p class="text-muted text-center">Preencha as odds e ao menos uma stake para calcular.</p>';
         return;
     }
     
@@ -154,83 +196,176 @@ function exibirResultados(res) {
     let lucroClass = res.lucro >= 0 ? 'profit' : 'loss';
     let roiClass = res.roi >= 0 ? 'profit' : 'loss';
 
-    // Gerar cards de resultado com stakes EDITÁVEIS
-    let cardsHtml = '<div class="row text-center">';
-    
+    // Atualizar valores diretamente nos campos das vias
     for (let i = 0; i < numeroVias; i++) {
         const letra = letras[i];
         const stake = res[`stake${letra}`];
         const cashback = res[`cb${letra}`];
-
-        cardsHtml += `
-            <div class="col-md-${12/Math.min(numeroVias, 4)} mb-3">
-                <div class="highlight">
-                    <h5>Via ${letra}</h5>
-                    <div class="input-group mb-2">
-                        <span class="input-group-text">Stake:</span>
-                        <input type="number" 
-                               class="form-control stake-editavel" 
-                               id="stakeEditavel${letra}" 
-                               value="${stake !== null && stake !== undefined ? stake.toFixed(2) : ''}"
-                               step="0.01" 
-                               oninput="editarStake('${letra}', this.value)"
-                               ${letra === 'A' ? 'disabled title="Stake A é controlado pelo campo principal"' : ''}>
-                        <span class="input-group-text">R$</span>
-                    </div>
-                    <p><strong>Cashback:</strong> R$ ${cashback !== null && cashback !== undefined ? cashback.toFixed(2) : '---'}</p>
-                </div>
-            </div>
-        `;
+        const isStakeFixo = stakeFixoEditado === letra;
+        
+        // Atualizar campo de stake
+        const stakeInput = document.getElementById(`stake${letra}`);
+        if (stakeInput) {
+            stakeInput.value = stake !== null && stake !== undefined ? stake.toFixed(2) : '';
+            
+            // Aplicar estilo visual para stake fixa
+            if (isStakeFixo) {
+                stakeInput.classList.add('bg-warning', 'text-dark');
+                stakeInput.title = 'Esta é a stake base para o cálculo';
+            } else {
+                stakeInput.classList.remove('bg-warning', 'text-dark');
+                stakeInput.title = 'Edite para recalcular as outras stakes';
+            }
+        }
+        
+        // Atualizar valor do cashback
+        const cbValueElement = document.getElementById(`cbValue${letra}`);
+        if (cbValueElement) {
+            cbValueElement.textContent = cashback !== null && cashback !== undefined ? cashback.toFixed(2) : '0.00';
+        }
+        
+        // Atualizar indicador visual no header do card
+        const cardHeader = stakeInput?.closest('.card')?.querySelector('.card-header h6');
+        if (cardHeader) {
+            if (isStakeFixo) {
+                cardHeader.innerHTML = `📊 Via ${letra} 🔒`;
+                cardHeader.closest('.card-header').classList.add('bg-warning', 'text-dark');
+                cardHeader.closest('.card-header').classList.remove('bg-success');
+            } else {
+                cardHeader.innerHTML = `📊 Via ${letra}`;
+                cardHeader.closest('.card-header').classList.remove('bg-warning', 'text-dark');
+                cardHeader.closest('.card-header').classList.add('bg-success');
+            }
+        }
     }
-    
-    cardsHtml += '</div>';
 
-    // Botão para resetar para modo automático
-    const resetButton = Object.keys(stakesEditaveis).length > 0 ? 
-        '<button class="btn btn-outline-secondary btn-sm mb-3" onclick="resetarParaAutomatico()">🔄 Resetar para Cálculo Automático</button>' : '';
+    // Área de resultados simplificada - apenas totais
+    const botoesControle = `
+        <div class="text-center mb-3">
+            <button class="btn btn-outline-secondary btn-sm me-2" onclick="resetarParaAutomatico()">
+                🔄 Modo Automático (Stake A)
+            </button>
+            <button class="btn btn-outline-info btn-sm" onclick="limparStakesEditaveis()">
+                🧹 Limpar Stakes Editadas
+            </button>
+        </div>
+    `;
 
-    // Resultado final
+    // Resultado final simplificado
     const resultadoHtml = `
-        ${resetButton}
-        ${cardsHtml}
+        ${botoesControle}
         <hr>
         <div class="text-center mt-3">
-            <h5><span class="label-resultado">💰 Lucro líquido:</span> <strong class="${lucroClass}">R$ ${res.lucro.toFixed(2)}</strong></h5>
-            <h5><span class="label-resultado">📈 ROI:</span> <strong class="${roiClass}">${res.roi.toFixed(2)}%</strong></h5>
-            ${res.message ? `<p class="text-danger mt-2">${res.message}</p>` : ''}
+            <div class="row justify-content-center">
+                <div class="col-md-4 mb-2">
+                    <div class="result-card p-3 bg-dark rounded">
+                        <h5 class="text-white">💰 Lucro líquido</h5>
+                        <h4 class="${lucroClass}">R$ ${res.lucro.toFixed(2)}</h4>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <div class="result-card p-3 bg-dark rounded">
+                        <h5 class="text-white">📈 ROI</h5>
+                        <h4 class="${roiClass}">${res.roi.toFixed(2)}%</h4>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <div class="result-card p-3 bg-dark rounded">
+                        <h5 class="text-white">💵 Total Investido</h5>
+                        <h4 class="text-info">R$ ${res.total_invested.toFixed(2)}</h4>
+                    </div>
+                </div>
+            </div>
+            ${res.message ? `<p class="text-info mt-3">${res.message}</p>` : ''}
             ${res.lucro > 0 ? '<p class="text-success mt-2">✅ Arbitragem com lucro garantido!</p>' : ''}
-            ${Object.keys(stakesEditaveis).length > 0 ? '<p class="text-info mt-2">📝 Modo de edição ativo - Stakes ajustados manualmente</p>' : ''}
+            ${res.modo_dinamico ? '<p class="text-warning mt-2">⚡ Modo Dinâmico Ativo - Stakes recalculadas automaticamente</p>' : ''}
         </div>
     `;
 
     document.getElementById('resultado').innerHTML = resultadoHtml;
+    
+    // Atualizar valores de referência
+    for (let i = 0; i < numeroVias; i++) {
+        const letra = letras[i];
+        ultimosValoresStakes[letra] = res[`stake${letra}`];
+    }
 }
 
 function editarStake(letra, valor) {
-    if (letra === 'A') return; // Stake A não pode ser editado aqui
-    
     const valorNumerico = parseFloat(valor);
     
     if (!isNaN(valorNumerico) && valorNumerico > 0) {
+        // Definir esta stake como a fixa
+        stakeFixoEditado = letra;
         stakesEditaveis[letra] = valorNumerico;
-        modoEdicao = true;
         
-        // Recalcular com o novo stake
+        // Limpar o campo Stake A se não for a via A
+        if (letra !== 'A') {
+            const stakeAElement = document.getElementById('stakeA');
+            if (stakeAElement) {
+                stakeAElement.value = '';
+            }
+        }
+        
+        // Recalcular com debounce
         clearTimeout(window.debounceTimer);
         window.debounceTimer = setTimeout(() => {
             calcular();
-        }, 300); // Debounce para evitar muitas requisições
+        }, 300);
     } else {
         // Se valor inválido, remover da lista de editáveis
-        delete stakesEditaveis[letra];
-        if (Object.keys(stakesEditaveis).length === 0) {
-            modoEdicao = false;
+        if (stakeFixoEditado === letra) {
+            stakeFixoEditado = null;
         }
+        delete stakesEditaveis[letra];
     }
 }
 
 function resetarParaAutomatico() {
     stakesEditaveis = {};
-    modoEdicao = false;
+    stakeFixoEditado = null;
+    ultimosValoresStakes = {};
+    
+    // Limpar campos de stakes editáveis
+    for (let i = 0; i < numeroVias; i++) {
+        const letra = letras[i];
+        const stakeElement = document.getElementById(`stakeEditavel${letra}`);
+        if (stakeElement) {
+            stakeElement.value = '';
+        }
+    }
+    
     calcular();
+}
+
+function limparStakesEditaveis() {
+    stakesEditaveis = {};
+    stakeFixoEditado = null;
+    ultimosValoresStakes = {};
+    
+    // Manter apenas o resultado atual sem recalcular
+    const resultadoElement = document.getElementById('resultado');
+    if (resultadoElement.innerHTML.includes('stake')) {
+        // Se há resultados, apenas remover indicadores visuais
+        const stakesEditaveis = document.querySelectorAll('.stake-editavel');
+        stakesEditaveis.forEach(input => {
+            input.classList.remove('bg-warning', 'text-dark');
+        });
+        
+        // Remover ícones de lock
+        const highlights = document.querySelectorAll('.highlight');
+        highlights.forEach(highlight => {
+            highlight.classList.remove('border-warning');
+            const h5 = highlight.querySelector('h5');
+            if (h5) {
+                h5.innerHTML = h5.innerHTML.replace(' 🔒', '');
+            }
+        });
+        
+        // Atualizar mensagem
+        const infoMsg = document.querySelector('.text-warning');
+        if (infoMsg && infoMsg.textContent.includes('Modo Dinâmico')) {
+            infoMsg.remove();
+        }
+    }
 }

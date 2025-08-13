@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 def calcular_logic_dinamico_editavel(data):
     """
-    Lógica principal de cálculo com suporte a stakes editáveis
+    Lógica principal de cálculo com suporte a stakes editáveis dinâmicas
     """
     numero_vias = data.get('numeroVias', 2)
     letras = ['A', 'B', 'C', 'D', 'E'][:numero_vias]
@@ -13,28 +13,25 @@ def calcular_logic_dinamico_editavel(data):
     # Extrair dados
     odds = {}
     cashbacks = {}
-    stakes = {}
     
     for letra in letras:
         odds[letra] = data.get(f'odd{letra}', 0)
         cb_percent = data.get(f'cb{letra}', 0)
         cashbacks[letra] = cb_percent / 100 if cb_percent > 1 else cb_percent
     
-    # Stake A sempre vem do campo principal
-    stakes['A'] = float(data['stakeA'])
-    if stakes['A'] <= 0:
-        return {"status": "erro", "message": "Stake A deve ser maior que 0.", "lucro": 0, "roi": 0}
-    
-    # Verificar se estamos em modo de edição
-    modo_edicao = data.get('modoEdicao', False)
+    # Verificar se há stakes editáveis
     stakes_editaveis = data.get('stakesEditaveis', {})
+    stake_fixo_editado = data.get('stakeFixoEditado', None)  # Qual stake foi editado pelo usuário
     
-    if modo_edicao and stakes_editaveis:
-        # Modo híbrido: usar stakes editáveis e calcular os restantes proporcionalmente
-        stakes = calcular_stakes_hibrido(odds, cashbacks, stakes['A'], numero_vias, letras, stakes_editaveis)
+    # Determinar modo de cálculo
+    if stake_fixo_editado and stake_fixo_editado in stakes_editaveis:
+        # Modo dinâmico: recalcular baseado na stake editada
+        stakes = calcular_stakes_dinamico(odds, cashbacks, stakes_editaveis, stake_fixo_editado, numero_vias, letras)
+    elif data.get('stakeA', 0) > 0:
+        # Modo tradicional: usar stake A como base
+        stakes = calcular_stakes_automatico(odds, cashbacks, float(data['stakeA']), numero_vias, letras)
     else:
-        # Modo automático: calcular todos os stakes via arbitragem
-        stakes = calcular_stakes_automatico(odds, cashbacks, stakes['A'], numero_vias, letras)
+        return {"status": "erro", "message": "Defina ao menos uma stake ou preencha o campo Stake A.", "lucro": 0, "roi": 0}
     
     # Calcular resultados finais
     total_invested = sum(stakes.values())
@@ -71,8 +68,8 @@ def calcular_logic_dinamico_editavel(data):
         lucro = sum(scenario_profits) / len(scenario_profits)
         roi = (lucro / total_invested) * 100
         status = "perda" if lucro < 0 else "ok"
-        if modo_edicao:
-            message = f"Stakes editados manualmente. Lucro/Perda médio: R$ {lucro:.2f} ({roi:.2f}%)"
+        if stake_fixo_editado:
+            message = f"Stakes recalculadas baseadas na {stake_fixo_editado} editada. Lucro/Perda médio: R$ {lucro:.2f} ({roi:.2f}%)"
         else:
             message = f"Não foi possível garantir lucro em todas as vias. Lucro/Perda médio: R$ {lucro:.2f} ({roi:.2f}%)"
     
@@ -82,7 +79,8 @@ def calcular_logic_dinamico_editavel(data):
         "lucro": lucro,
         "roi": roi,
         "message": message,
-        "total_invested": total_invested
+        "total_invested": total_invested,
+        "modo_dinamico": stake_fixo_editado is not None
     }
     
     # Adicionar stakes e cashbacks individuais
@@ -91,6 +89,126 @@ def calcular_logic_dinamico_editavel(data):
         result[f'cb{letra}'] = cashback_values[letra]
     
     return result
+
+def calcular_stakes_dinamico(odds, cashbacks, stakes_editaveis, stake_fixo, numero_vias, letras):
+    """
+    Calcula stakes dinamicamente baseado em uma stake fixa editada pelo usuário
+    """
+    stakes = {}
+    
+    # Definir a stake fixa
+    stake_fixo_valor = float(stakes_editaveis[stake_fixo])
+    stakes[stake_fixo] = stake_fixo_valor
+    
+    # Calcular as outras stakes usando sympy para arbitragem perfeita
+    stake_symbols = {}
+    for letra in letras:
+        if letra != stake_fixo:
+            stake_symbols[letra] = sp.symbols(f'stake{letra}', real=True, positive=True)
+    
+    # Criar equações de lucro para cada cenário
+    equations = []
+    profits = {}
+    
+    for i in range(numero_vias):
+        letra_vencedora = letras[i]
+        profit = 0
+        
+        # Lucro da aposta vencedora
+        if letra_vencedora == stake_fixo:
+            profit += stakes[stake_fixo] * odds[letra_vencedora]
+        else:
+            profit += stake_symbols[letra_vencedora] * odds[letra_vencedora]
+        
+        # Cashback das apostas perdedoras
+        for j in range(numero_vias):
+            letra_perdedora = letras[j]
+            if letra_perdedora != letra_vencedora:
+                if letra_perdedora == stake_fixo:
+                    profit += stakes[stake_fixo] * cashbacks[letra_perdedora]
+                else:
+                    profit += stake_symbols[letra_perdedora] * cashbacks[letra_perdedora]
+        
+        # Subtrair total investido
+        total_invested = stakes[stake_fixo]
+        for letra in letras:
+            if letra != stake_fixo:
+                total_invested += stake_symbols[letra]
+        
+        profit -= total_invested
+        profits[letra_vencedora] = profit
+    
+    # Criar equações para arbitragem perfeita (todos os lucros iguais)
+    base_profit = profits[letras[0]]
+    for i in range(1, numero_vias):
+        letra = letras[i]
+        equations.append(sp.Eq(base_profit, profits[letra]))
+    
+    # Resolver o sistema de equações
+    symbols_to_solve = [stake_symbols[letra] for letra in letras if letra != stake_fixo]
+    
+    try:
+        if len(symbols_to_solve) > 0:
+            solutions = sp.solve(equations, symbols_to_solve, dict=True)
+            
+            if solutions and len(solutions) > 0:
+                sol = solutions[0]
+                
+                # Verificar se todas as soluções são positivas
+                all_positive = True
+                for letra in letras:
+                    if letra != stake_fixo:
+                        symbol_key = stake_symbols[letra]
+                        if symbol_key in sol and sol[symbol_key] > 0:
+                            stakes[letra] = float(sol[symbol_key])
+                        else:
+                            all_positive = False
+                            break
+                
+                if not all_positive:
+                    # Fallback para distribuição proporcional
+                    stakes = calcular_stakes_proporcionais_com_fixo(odds, stake_fixo, stake_fixo_valor, numero_vias, letras)
+            else:
+                # Fallback para distribuição proporcional
+                stakes = calcular_stakes_proporcionais_com_fixo(odds, stake_fixo, stake_fixo_valor, numero_vias, letras)
+        else:
+            # Caso especial: apenas uma via (não deveria acontecer)
+            stakes = {stake_fixo: stake_fixo_valor}
+            
+    except Exception:
+        # Fallback para distribuição proporcional
+        stakes = calcular_stakes_proporcionais_com_fixo(odds, stake_fixo, stake_fixo_valor, numero_vias, letras)
+    
+    return stakes
+
+def calcular_stakes_proporcionais_com_fixo(odds, stake_fixo, stake_fixo_valor, numero_vias, letras):
+    """
+    Calcula stakes proporcionais baseado em uma stake fixa
+    """
+    # Calcular probabilidades implícitas
+    implied_probs = {}
+    total_implied = 0
+    
+    for letra in letras:
+        implied_probs[letra] = 1 / odds[letra]
+        total_implied += implied_probs[letra]
+    
+    # Normalizar probabilidades
+    for letra in implied_probs:
+        implied_probs[letra] /= total_implied
+    
+    # Calcular orçamento total baseado na stake fixa
+    total_budget = stake_fixo_valor / implied_probs[stake_fixo]
+    
+    # Calcular stakes proporcionais
+    stakes = {}
+    for letra in letras:
+        if letra == stake_fixo:
+            stakes[letra] = stake_fixo_valor
+        else:
+            stakes[letra] = total_budget * implied_probs[letra]
+    
+    return stakes
 
 def calcular_stakes_automatico(odds, cashbacks, stake_a, numero_vias, letras):
     """
@@ -174,51 +292,6 @@ def calcular_stakes_automatico(odds, cashbacks, stake_a, numero_vias, letras):
     
     return stakes
 
-def calcular_stakes_hibrido(odds, cashbacks, stake_a, numero_vias, letras, stakes_editaveis):
-    """
-    Calcula stakes em modo híbrido: alguns editados manualmente, outros ajustados proporcionalmente
-    """
-    stakes = {'A': stake_a}
-    
-    # Adicionar stakes editáveis
-    for letra, valor in stakes_editaveis.items():
-        if letra != 'A':  # A não pode ser editado aqui
-            stakes[letra] = float(valor)
-    
-    # Para vias não editadas, calcular proporcionalmente baseado nas editadas
-    vias_nao_editadas = []
-    for i in range(1, numero_vias):
-        letra = letras[i]
-        if letra not in stakes_editaveis:
-            vias_nao_editadas.append(letra)
-    
-    if vias_nao_editadas:
-        # Calcular stakes proporcionais para as vias não editadas
-        # Usar a mesma lógica de probabilidades implícitas
-        total_budget_usado = sum(stakes.values())
-        
-        # Calcular probabilidades implícitas das vias não editadas
-        implied_probs = {}
-        total_implied = 0
-        
-        for letra in vias_nao_editadas:
-            implied_probs[letra] = 1 / odds[letra]
-            total_implied += implied_probs[letra]
-        
-        if total_implied > 0:
-            # Normalizar probabilidades
-            for letra in implied_probs:
-                implied_probs[letra] /= total_implied
-            
-            # Estimar orçamento restante (baseado na proporção das vias editadas)
-            budget_restante = total_budget_usado * 0.3  # Estimativa conservadora
-            
-            # Distribuir orçamento restante proporcionalmente
-            for letra in vias_nao_editadas:
-                stakes[letra] = budget_restante * implied_probs[letra]
-    
-    return stakes
-
 def calcular_stakes_proporcionais(odds, stake_a, numero_vias, letras):
     """
     Calcula stakes proporcionais baseado nas probabilidades implícitas
@@ -271,3 +344,4 @@ def calcular():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
